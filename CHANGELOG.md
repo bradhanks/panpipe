@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/) and
 [Keep a CHANGELOG](http://keepachangelog.com).
 
 
+## v0.3.3 - 2026-01-25
+
+### Fixed
+
+- compile error on Elixir v1.19
+
+
+[Compare v0.3.2...v0.3.3](https://github.com/marcelotto/panpipe/compare/v0.3.2...v0.3.3)
+
+
+
 ## v0.3.2 - 2025-01-30
 
 ### Fixed
