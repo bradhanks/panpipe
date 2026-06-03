@@ -142,6 +142,20 @@ One struct, mirroring ProseMirror's real shape:
 `smallcaps`, `underline`, `span` (attrs: `id`, `classes`, key-values — see Span
 mapping below).
 
+### Resolved modeling details
+
+- **Tables.** `table` content = `table_caption? table_row+`. The Pandoc caption
+  (which is *blocks*, possibly formatted) maps to a child **`table_caption`**
+  node holding mapped block/inline content — **not** a flattened string attr, to
+  stay lossless. Cells (`table_cell`/`table_header`) carry an `align` attr
+  (`left|center|right|default`). Column-width / detailed colspec calculations are
+  **deferred** for Phase 1 but the raw colspec is preserved on the `table` node's
+  attrs (e.g. `attrs["colspec"]`) so nothing is lost.
+- **Definition lists.** `definition_list = (def_term def_desc+)+` — note `+` on
+  `def_desc`, because Pandoc's `DefinitionList` (`[([Inline], [[Block]])]`)
+  permits **multiple definitions per term**. `def_term = inline*`;
+  `def_desc = block+`.
+
 **ID-bearing nodes:** all block + atomic nodes carry `attrs["id"]`; `text` nodes
 do not (ProseMirror text nodes cannot hold attrs/ids; text identity is tracked
 positionally by the CRDT). This is exactly what PM "unique node id" plugins do
@@ -263,7 +277,11 @@ the final gate. Default `on_invalid: :error` (hard-fail — this is an SSoT);
 ## Dependencies
 
 - `nimble_parsec` — content-expression parsing.
-- A small ID generator (nanoid-style util, or `:crypto.strong_rand_bytes`-based).
+- **No new ID dependency.** `Canonical.Id` is a hand-rolled, zero-dep generator
+  using `:crypto.strong_rand_bytes/1` over a 64-char URL-safe alphabet with
+  **6-bit masking** (`byte &&& 63`) — the nanoid technique, which is bias-free
+  (a naive `rem(byte, 62)` over 0–255 would skew the character distribution).
+  Default length 12; generator is injectable via `opts[:id_generator]`.
 - Existing: `jason` (already a dep), `panpipe` modules (in-repo).
 
 ## Rebrand handling (deferred, off critical path)
@@ -273,9 +291,21 @@ Build under `Canonical.*` alongside `Panpipe.*`. The eventual rebrand
 deferred `to_<format>` export helpers) is its own commit once the product name is
 chosen. Not on the Phase-1 critical path.
 
+## Resolved during review
+
+- **ID format/generator:** hand-rolled zero-dep `:crypto` + 6-bit masking,
+  length 12 (see Dependencies).
+- **Table/caption:** `table_caption` child node (lossless); cell `align` attr;
+  colspec preserved on table attrs, width calc deferred (see Resolved modeling
+  details).
+- **Definition lists:** `(def_term def_desc+)+` (see Resolved modeling details).
+- **No UTF-16 / character-offset tracking** in Phase 1: the canonical form stores
+  no positions; text is plain strings and PM positions are derived. (A potential
+  concern only in the much-later CRDT/editor phase, and handled by the CRDT there
+  — explicitly out of scope here.)
+
 ## Open items for the implementation plan
 
-- Exact attr lists per node/mark (finalize during schema implementation).
-- Table/caption modeling specifics (Pandoc's `Table` is the richest element).
-- Choice of ID format (nanoid length/alphabet) and library vs. hand-rolled.
-- `def_term`/`def_desc` content expressions.
+- Exact attr lists per remaining node/mark (finalize during schema
+  implementation).
+- Choice of nanoid alphabet characters (URL-safe set) — cosmetic.
