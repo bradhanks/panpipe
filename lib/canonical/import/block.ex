@@ -139,7 +139,7 @@ defmodule Canonical.Import.Block do
   defp body_row(row, _head_cols, opts), do: table_row(row, "table_cell", opts)
 
   defp list_item(%Panpipe.AST.ListElement{children: blocks}, opts),
-    do: %Node{type: "list_item", content: map_blocks(blocks, opts)}
+    do: %Node{type: "list_item", content: blocks_or_empty(map_blocks(blocks, opts))}
 
   defp list_attrs(%Panpipe.AST.ListAttributes{
          start: start,
@@ -168,7 +168,9 @@ defmodule Canonical.Import.Block do
     %Node{
       type: cell_type,
       attrs: %{"align" => align(a), "rowspan" => rs, "colspan" => cs},
-      content: map_blocks(blocks, opts)
+      # real-world tables have empty cells; a cell must still hold a block
+      # (ProseMirror table schemas expect at least an empty paragraph).
+      content: blocks_or_empty(map_blocks(blocks, opts))
     }
   end
 

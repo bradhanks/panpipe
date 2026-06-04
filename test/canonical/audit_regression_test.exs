@@ -96,6 +96,39 @@ defmodule Canonical.AuditRegressionTest do
     assert {:ok, _doc, _warnings} = Canonical.from_panpipe(%Panpipe.Document{children: [dl]})
   end
 
+  # --- real-world: empty table cells / list items must validate ---
+  test "empty table cells get an empty paragraph and validate" do
+    empty_cell = %Panpipe.AST.Cell{
+      blocks: [],
+      alignment: "AlignDefault",
+      row_span: 1,
+      col_span: 1
+    }
+
+    row = %Panpipe.AST.Row{cells: [empty_cell]}
+
+    table = %Panpipe.AST.Table{
+      col_spec: [],
+      table_head: %Panpipe.AST.TableHead{rows: []},
+      table_bodies: [
+        %Panpipe.AST.TableBody{intermediate_head_rows: [], intermediate_body_rows: [row]}
+      ],
+      table_foot: %Panpipe.AST.TableFoot{rows: []},
+      caption: %Panpipe.AST.Caption{blocks: []},
+      attr: %Panpipe.AST.Attr{}
+    }
+
+    assert {:ok, tree, _} = Canonical.from_panpipe(%Panpipe.Document{children: [table]})
+    cell = tree.content |> hd() |> Map.get(:content) |> hd() |> Map.get(:content) |> hd()
+    assert cell.type == "table_cell"
+    assert [%Node{type: "paragraph", content: []}] = cell.content
+  end
+
+  test "empty list items validate" do
+    bl = %Panpipe.AST.BulletList{children: [%Panpipe.AST.ListElement{children: []}]}
+    assert {:ok, _tree, _} = Canonical.from_panpipe(%Panpipe.Document{children: [bl]})
+  end
+
   # --- #5 empty figure -> empty div validates (div is block*) ---
   test "empty figure maps to an empty div that validates" do
     fig = %Panpipe.AST.Figure{
