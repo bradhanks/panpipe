@@ -233,9 +233,10 @@ Pre-order walk collecting violations with a path (e.g.
 2. **Content** satisfies the node's content expression. Phase-1 supported forms:
    `name`, `group`, `*`, `+`, `?`, sequences, and `(a | b)` alternation — enough
    to enforce rules like `table_row = (table_cell | table_header)+`,
-   `bullet_list = list_item+`, `doc = block+`. Content expressions are parsed via
-   **`nimble_parsec`** into a matcher. Full PM regex-grammar parity is a later
-   enhancement.
+   `bullet_list = list_item+`, `doc = block+`. Content expressions are parsed by a
+   small hand-rolled **recursive-descent parser** (the "simple token state-machine"
+   option) into a matcher — keeping the library dependency-free. Full PM
+   regex-grammar parity is a later enhancement.
 3. `marks` on the node are all in the node's allowed-marks set; marks only on
    inline nodes.
 4. Required `attrs` present; defaults filled from the spec.
@@ -276,7 +277,8 @@ the final gate. Default `on_invalid: :error` (hard-fail — this is an SSoT);
 
 ## Dependencies
 
-- `nimble_parsec` — content-expression parsing.
+- **No new dependencies.** Content expressions are parsed by a small hand-rolled
+  recursive-descent parser (zero deps) rather than `nimble_parsec`.
 - **No new ID dependency.** `Canonical.Id` is a hand-rolled, zero-dep generator
   using `:crypto.strong_rand_bytes/1` over a 64-char URL-safe alphabet with
   **6-bit masking** (`byte &&& 63`) — the nanoid technique, which is bias-free
