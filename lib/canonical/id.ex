@@ -30,41 +30,55 @@ defmodule Canonical.Id do
   """
   def mint(%Node{} = tree, opts \\ []) do
     gen = Keyword.get(opts, :id_generator, &generate/0)
-    {minted, _seen, warnings} = mint_node(tree, MapSet.new(), [], gen)
+    {minted, _authored, _taken, warnings} = mint_node(tree, MapSet.new(), MapSet.new(), [], gen)
     {minted, Enum.reverse(warnings)}
   end
 
-  defp mint_node(%Node{type: "text"} = node, seen, warnings, _gen), do: {node, seen, warnings}
+  defp mint_node(%Node{type: "text"} = node, authored, taken, warnings, _gen),
+    do: {node, authored, taken, warnings}
 
-  defp mint_node(%Node{} = node, seen, warnings, gen) do
-    {id, seen, warnings} = resolve_id(Map.get(node.attrs, "id"), seen, warnings, gen)
+  defp mint_node(%Node{} = node, authored, taken, warnings, gen) do
+    {id, authored, taken, warnings} =
+      resolve_id(Map.get(node.attrs, "id"), authored, taken, warnings, gen)
 
-    {content, seen, warnings} =
-      Enum.reduce(node.content, {[], seen, warnings}, fn child, {acc, s, w} ->
-        {minted, s2, w2} = mint_node(child, s, w, gen)
-        {[minted | acc], s2, w2}
+    {content, authored, taken, warnings} =
+      Enum.reduce(node.content, {[], authored, taken, warnings}, fn child, {acc, a, t, w} ->
+        {minted, a2, t2, w2} = mint_node(child, a, t, w, gen)
+        {[minted | acc], a2, t2, w2}
       end)
 
-    {%{node | attrs: Map.put(node.attrs, "id", id), content: Enum.reverse(content)}, seen,
-     warnings}
+    {%{node | attrs: Map.put(node.attrs, "id", id), content: Enum.reverse(content)}, authored,
+     taken, warnings}
   end
 
-  defp resolve_id(existing, seen, warnings, gen) when is_binary(existing) and existing != "" do
-    if MapSet.member?(seen, existing) do
-      fresh = fresh_id(seen, gen)
-      {fresh, MapSet.put(seen, fresh), [{:duplicate_id, existing} | warnings]}
-    else
-      {existing, MapSet.put(seen, existing), warnings}
+  # `authored` = author-supplied ids actually kept; `taken` = every id in use
+  # (authored + minted), used only to guarantee minted ids never collide.
+  defp resolve_id(existing, authored, taken, warnings, gen)
+       when is_binary(existing) and existing != "" do
+    cond do
+      MapSet.member?(authored, existing) ->
+        # genuine author-vs-author duplicate → mint a fresh id and warn
+        fresh = fresh_id(taken, gen)
+        {fresh, authored, MapSet.put(taken, fresh), [{:duplicate_id, existing} | warnings]}
+
+      MapSet.member?(taken, existing) ->
+        # collides only with a previously-minted random id (astronomically rare);
+        # mint a fresh id but do NOT warn — it is not an authored duplicate
+        fresh = fresh_id(taken, gen)
+        {fresh, MapSet.put(authored, fresh), MapSet.put(taken, fresh), warnings}
+
+      true ->
+        {existing, MapSet.put(authored, existing), MapSet.put(taken, existing), warnings}
     end
   end
 
-  defp resolve_id(_missing, seen, warnings, gen) do
-    fresh = fresh_id(seen, gen)
-    {fresh, MapSet.put(seen, fresh), warnings}
+  defp resolve_id(_missing, authored, taken, warnings, gen) do
+    fresh = fresh_id(taken, gen)
+    {fresh, authored, MapSet.put(taken, fresh), warnings}
   end
 
-  defp fresh_id(seen, gen) do
+  defp fresh_id(taken, gen) do
     id = gen.()
-    if MapSet.member?(seen, id), do: fresh_id(seen, gen), else: id
+    if MapSet.member?(taken, id), do: fresh_id(taken, gen), else: id
   end
 end

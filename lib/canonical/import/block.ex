@@ -62,10 +62,10 @@ defmodule Canonical.Import.Block do
   defp map(%Panpipe.AST.DefinitionList{children: items}, opts) do
     content =
       Enum.flat_map(items, fn [term, definitions] ->
-        [%Node{type: "def_term", content: Inline.flatten(term, opts)}] ++
-          Enum.map(definitions, fn blocks ->
-            %Node{type: "def_desc", content: map_blocks(blocks, opts)}
-          end)
+        [
+          %Node{type: "def_term", content: Inline.flatten(term, opts)}
+          | def_descs(definitions, opts)
+        ]
       end)
 
     [%Node{type: "definition_list", content: content}]
@@ -78,7 +78,7 @@ defmodule Canonical.Import.Block do
     body =
       Enum.flat_map(t.table_bodies, fn b ->
         Enum.map(b.intermediate_head_rows, &table_row(&1, "table_header", opts)) ++
-          Enum.map(b.intermediate_body_rows, &table_row(&1, "table_cell", opts))
+          Enum.map(b.intermediate_body_rows, &body_row(&1, b.row_head_columns, opts))
       end)
 
     foot = Enum.map(t.table_foot.rows, &table_row(&1, "table_cell", opts))
@@ -105,6 +105,39 @@ defmodule Canonical.Import.Block do
     ]
 
   # --- helpers ---
+
+  # A term may legitimately carry zero definitions (Pandoc `[term, []]`), and an
+  # individual definition may map to zero blocks. `def_desc` requires `block+`, so
+  # substitute an empty paragraph to keep the doc schema-valid (and lossless about
+  # the term itself) rather than failing the whole import.
+  defp def_descs([], _opts), do: [%Node{type: "def_desc", content: [empty_paragraph()]}]
+
+  defp def_descs(definitions, opts) do
+    Enum.map(definitions, fn blocks ->
+      %Node{type: "def_desc", content: blocks_or_empty(map_blocks(blocks, opts))}
+    end)
+  end
+
+  defp blocks_or_empty([]), do: [empty_paragraph()]
+  defp blocks_or_empty(blocks), do: blocks
+
+  defp empty_paragraph, do: %Node{type: "paragraph", content: []}
+
+  # The first `row_head_columns` cells of each body row are stub (row-header) cells
+  # in Pandoc's model; type them as table_header, the rest as table_cell.
+  defp body_row(%Panpipe.AST.Row{cells: cells}, head_cols, opts)
+       when is_integer(head_cols) and head_cols > 0 do
+    {stub, data} = Enum.split(cells, head_cols)
+
+    content =
+      Enum.map(stub, &table_cell(&1, "table_header", opts)) ++
+        Enum.map(data, &table_cell(&1, "table_cell", opts))
+
+    %Node{type: "table_row", content: content}
+  end
+
+  defp body_row(row, _head_cols, opts), do: table_row(row, "table_cell", opts)
+
   defp list_item(%Panpipe.AST.ListElement{children: blocks}, opts),
     do: %Node{type: "list_item", content: map_blocks(blocks, opts)}
 

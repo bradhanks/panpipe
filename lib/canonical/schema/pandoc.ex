@@ -60,7 +60,7 @@ defmodule Canonical.Schema.Pandoc do
       "def_term" => %NodeSpec{content: "inline*", marks: :all, attrs: id_attr()},
       "def_desc" => %NodeSpec{content: "block+", attrs: id_attr()},
       "div" => %NodeSpec{
-        content: "block+",
+        content: "block*",
         group: "block",
         attrs: Map.merge(id_attr(), %{"classes" => %{default: []}, "attrs" => %{default: %{}}})
       },

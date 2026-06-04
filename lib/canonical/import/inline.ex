@@ -47,6 +47,7 @@ defmodule Canonical.Import.Inline do
   end
 
   # --- leaf text ---
+  defp node(%Panpipe.AST.Str{string: ""}, _marks, _opts), do: []
   defp node(%Panpipe.AST.Str{string: s}, marks, _opts), do: [Node.text(s, marks)]
   defp node(%Panpipe.AST.Space{}, marks, _opts), do: [Node.text(" ", marks)]
 
@@ -117,8 +118,26 @@ defmodule Canonical.Import.Inline do
   end
 
   # --- helpers ---
+  # Accumulate a mark. ProseMirror permits only ONE mark of a given type per text
+  # node, so when the same type is already present (nested Span/Link/etc.) we MERGE
+  # attrs into it — inner (newer) wins on scalar conflicts, classes are unioned —
+  # rather than dropping the inner attrs or emitting a duplicate mark.
   defp add(marks, type, attrs \\ %{}) do
-    if Enum.any?(marks, &(&1.type == type)), do: marks, else: marks ++ [Mark.new(type, attrs)]
+    if Enum.any?(marks, &(&1.type == type)) do
+      Enum.map(marks, fn
+        %Mark{type: ^type} = m -> Mark.new(type, merge_attrs(m.attrs, attrs))
+        m -> m
+      end)
+    else
+      marks ++ [Mark.new(type, attrs)]
+    end
+  end
+
+  defp merge_attrs(outer, inner) do
+    Map.merge(outer, inner, fn
+      "classes", l, r when is_list(l) and is_list(r) -> Enum.uniq(l ++ r)
+      _key, _l, r -> r
+    end)
   end
 
   defp inline_text(inlines, opts) do
@@ -133,6 +152,7 @@ defmodule Canonical.Import.Inline do
 
   defp coalesce(nodes) do
     nodes
+    |> Enum.reject(&match?(%Node{type: "text", text: ""}, &1))
     |> Enum.reduce([], fn
       %Node{type: "text"} = node, [%Node{type: "text"} = prev | rest] ->
         if prev.marks == node.marks,

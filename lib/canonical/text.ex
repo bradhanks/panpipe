@@ -38,6 +38,9 @@ defmodule Canonical.Text do
       |> :unicode.characters_to_binary({:utf16, :little}, :utf8)
       |> case do
         bin when is_binary(bin) -> bin
+        # Slice ended on a split surrogate pair: keep the valid decoded prefix
+        # instead of discarding everything.
+        {:incomplete, valid, _rest} -> valid
         _ -> ""
       end
     end

@@ -38,7 +38,8 @@ defmodule Canonical do
     ast_opts =
       case Keyword.get(opts, :source_format) do
         nil -> []
-        fmt -> [from: String.to_atom(fmt)]
+        fmt when is_atom(fmt) -> [from: fmt]
+        fmt when is_binary(fmt) -> [from: String.to_atom(fmt)]
       end
 
     tmp = Path.join(System.tmp_dir!(), "canonical_import_#{:erlang.unique_integer([:positive])}")
@@ -54,7 +55,8 @@ defmodule Canonical do
   def import_document(in_opts, opts) when is_list(in_opts), do: run_import(in_opts, opts)
 
   defp run_import(in_opts, opts) do
-    canonical_opts = Keyword.take(opts, [:id_generator, :preserve_soft_breaks, :on_invalid])
+    canonical_opts =
+      Keyword.take(opts, [:id_generator, :preserve_soft_breaks, :on_invalid, :schema])
 
     case ingest(in_opts, canonical_opts) do
       {:ok, struct_doc, warnings} ->
