@@ -85,6 +85,14 @@ defmodule Canonical do
   defp word_count(""), do: 0
   defp word_count(text), do: text |> String.split(~r/\s+/, trim: true) |> length()
 
+  @doc """
+  Export a canonical doc map back out to a Pandoc format.
+
+  `opts` must include `:to` (e.g. `to: :html`, `to: :markdown`); other opts pass
+  through to Pandoc. Returns `{:ok, output_string} | {:error, reason}`.
+  """
+  defdelegate export(doc, opts), to: Canonical.Export, as: :to_format
+
   @doc "The default schema (the custom Pandoc-covering schema)."
   def schema, do: Pandoc.schema()
 end
