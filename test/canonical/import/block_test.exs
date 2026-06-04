@@ -14,7 +14,7 @@ defmodule Canonical.Import.BlockTest do
              Block.map_blocks([%Panpipe.AST.Plain{children: [s("x")]}], [])
   end
 
-  test "Header maps to heading with level and preserved id" do
+  test "Header maps to heading with level and the Pandoc id preserved as source_id" do
     h = %Panpipe.AST.Header{
       level: 2,
       attr: %Panpipe.AST.Attr{identifier: "intro"},
@@ -23,7 +23,10 @@ defmodule Canonical.Import.BlockTest do
 
     assert [%Node{type: "heading", attrs: attrs}] = Block.map_blocks([h], [])
     assert attrs["level"] == 2
-    assert attrs["id"] == "intro"
+    # The Pandoc identifier is preserved as source_id (cross-ref anchor); the
+    # stable node "id" is minted later by Canonical.Id, not in block mapping.
+    assert attrs["source_id"] == "intro"
+    refute Map.has_key?(attrs, "id")
   end
 
   test "CodeBlock maps to code_block with language and text content" do
