@@ -136,6 +136,9 @@ defmodule Canonical.Import.Inline do
   defp merge_attrs(outer, inner) do
     Map.merge(outer, inner, fn
       "classes", l, r when is_list(l) and is_list(r) -> Enum.uniq(l ++ r)
+      # the "attrs" key holds Pandoc key-value pairs as a map — deep-merge it
+      # (inner wins per key) so nested styled spans don't wipe the outer map
+      "attrs", l, r when is_map(l) and is_map(r) -> Map.merge(l, r)
       _key, _l, r -> r
     end)
   end

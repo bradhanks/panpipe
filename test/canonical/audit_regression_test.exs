@@ -26,6 +26,21 @@ defmodule Canonical.AuditRegressionTest do
     assert m.attrs["href"] == "http://inner"
   end
 
+  test "nested spans deep-merge their key-value attrs (outer kv preserved)" do
+    inner = %Panpipe.AST.Span{
+      children: [s("t")],
+      attr: %Panpipe.AST.Attr{key_value_pairs: %{"data-b" => "2"}}
+    }
+
+    outer = %Panpipe.AST.Span{
+      children: [inner],
+      attr: %Panpipe.AST.Attr{key_value_pairs: %{"data-a" => "1"}}
+    }
+
+    assert [%Node{type: "text", marks: [m]}] = Inline.flatten([outer], [])
+    assert m.attrs["attrs"] == %{"data-a" => "1", "data-b" => "2"}
+  end
+
   # --- #2 empty Str produces no empty text node ---
   test "empty Str yields no node, and empties never survive coalescing" do
     assert Inline.flatten([s("")], []) == []

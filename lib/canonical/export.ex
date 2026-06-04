@@ -86,13 +86,27 @@ defmodule Canonical.Export do
         [[inlines(t), []] | acc]
 
       %{"type" => "def_desc"} = d, [[term, defs] | rest] ->
-        [[term, defs ++ [blocks(d)]] | rest]
+        case def_blocks(d) do
+          # synthesized placeholder for a term with no real definition → emit
+          # no definition, faithfully reproducing Pandoc's `[term, []]`
+          [] -> [[term, defs] | rest]
+          bs -> [[term, defs ++ [bs]] | rest]
+        end
 
       _other, acc ->
         acc
     end)
     |> Enum.reverse()
   end
+
+  # A def_desc that is exactly one empty paragraph is the import-time placeholder
+  # for "term with no definition" (note: empty "content" is omitted from the map),
+  # so treat it as no blocks on the way out.
+  defp def_blocks(%{"content" => [%{"type" => "paragraph"} = p]} = d) do
+    if content(p) == [], do: [], else: blocks(d)
+  end
+
+  defp def_blocks(d), do: blocks(d)
 
   defp table(n) do
     rows = content(n)
@@ -106,10 +120,7 @@ defmodule Canonical.Export do
     body_rows = Enum.filter(rows, &(&1["type"] == "table_row"))
     {head_rows, data_rows} = Enum.split_with(body_rows, &all_header?/1)
     ncols = body_rows |> Enum.map(&length(content(&1))) |> Enum.max(fn -> 0 end)
-
-    col_spec =
-      for _ <- 1..max(ncols, 1),
-          do: %P.ColSpec{alignment: "AlignDefault", col_width: "ColWidthDefault"}
+    col_spec = col_spec(attrs(n)["colspec"], ncols)
 
     %P.Table{
       attr: attr(attrs(n)),
@@ -125,6 +136,20 @@ defmodule Canonical.Export do
       ],
       table_foot: %P.TableFoot{rows: []}
     }
+  end
+
+  # Rebuild Pandoc col specs from the stored colspec when it matches the column
+  # count (preserving per-column alignment + width); otherwise fall back to a
+  # default spec sized to the table.
+  defp col_spec(specs, ncols) when is_list(specs) and length(specs) == ncols and ncols > 0 do
+    Enum.map(specs, fn c ->
+      %P.ColSpec{alignment: alignment(c["align"]), col_width: c["width"] || "ColWidthDefault"}
+    end)
+  end
+
+  defp col_spec(_specs, ncols) do
+    for _ <- 1..max(ncols, 1),
+        do: %P.ColSpec{alignment: "AlignDefault", col_width: "ColWidthDefault"}
   end
 
   defp all_header?(row), do: row |> content() |> Enum.all?(&(&1["type"] == "table_header"))

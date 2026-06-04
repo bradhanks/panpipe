@@ -51,6 +51,21 @@ defmodule Canonical.ExportTest do
     assert md =~ "definition"
   end
 
+  test "a term with no definition exports without an empty definition (no ghost paragraph)" do
+    dl = %Panpipe.AST.DefinitionList{children: [[[%Panpipe.AST.Str{string: "Term"}], []]]}
+    {:ok, doc, _} = Canonical.from_panpipe(%Panpipe.Document{children: [dl]})
+    {:ok, md} = Canonical.export(Canonical.to_pm_json(doc), to: :markdown)
+    assert md =~ "Term"
+    refute md =~ ":"
+  end
+
+  test "export preserves column alignment via the stored colspec" do
+    doc = import!("| A | B |\n|:--|--:|\n| 1 | 2 |")
+    assert {:ok, html} = Canonical.export(doc, to: :html)
+    # the right-aligned column survives the round-trip
+    assert html =~ "right"
+  end
+
   test "round-trips raw HTML (escape node) through export" do
     doc = import!("<aside class=\"note\">hi</aside>", :html)
     assert {:ok, html} = Canonical.export(doc, to: :html)

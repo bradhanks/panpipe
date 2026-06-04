@@ -104,7 +104,10 @@ utf16_slice(string, from, to) :: String.t()    # END-offset semantics, surrogate
 
 `flatten_text/1` inserts no separators between blocks, so offsets line up exactly
 with what the frontend sees. `utf16_slice/3` clamps out-of-range offsets and, if a
-slice ends mid-surrogate, returns the valid decoded prefix rather than failing.
+slice ends mid-surrogate, returns the valid decoded **prefix** rather than failing
+— meaning the result can be *shorter* than the requested range for malformed
+(mid-codepoint) inputs. Compute downstream offsets from absolute positions, not
+from a slice result's length.
 
 ## Public API
 
@@ -145,5 +148,10 @@ so the suite doesn't shell out to Pandoc; point the real adapter at
 ## Scope / non-goals
 
 Import + canonical model + validation + PM JSON + text helpers are in scope. Export
-(canonical → other formats) lives in `Canonical.Export`. A live CRDT engine and an
-actual editor are out of scope here (the model is shaped to support them later).
+(canonical → other formats, `Canonical.export/2` / `Canonical.Export`) reconstructs
+nested Pandoc inlines from marks, round-trips escape nodes, and preserves per-column
+alignment/width via the stored `colspec`. **Export table limitation:** very complex
+Pandoc table layouts (multiple bodies, intermediate header rows) are flattened to a
+single head + single body on export; structural content and column alignment are
+preserved, exotic multi-body layout is simplified. A live CRDT engine and an actual
+editor are out of scope here (the model is shaped to support them later).
