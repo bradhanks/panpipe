@@ -1,6 +1,6 @@
 defmodule Canonical.Import do
   @moduledoc "Orchestrates Panpipe IR → canonical tree → minted ids → validation."
-  alias Canonical.{Node, Id, Schema, PM, Convert}
+  alias Canonical.{Node, Id, Schema, PM}
   alias Canonical.Import.Block
   alias Canonical.Schema.{Pandoc, Validator}
 
@@ -20,44 +20,17 @@ defmodule Canonical.Import do
   def ingest(input_or_opts, opts \\ []) do
     {canonical_opts, pandoc_opts} = Keyword.split(opts, @canonical_opts)
 
-    case input_or_opts do
-      input when is_binary(input) ->
-        finish(Panpipe.ast(input, pandoc_opts), canonical_opts)
+    ast_result =
+      case input_or_opts do
+        input when is_binary(input) -> Panpipe.ast(input, pandoc_opts)
+        list when is_list(list) -> Panpipe.ast(Keyword.merge(list, pandoc_opts))
+      end
 
-      list when is_list(list) ->
-        ingest_opts(Keyword.merge(list, pandoc_opts), canonical_opts)
+    case ast_result do
+      {:ok, %Panpipe.Document{} = doc} -> from_panpipe(doc, canonical_opts)
+      {:error, _} = error -> error
     end
   end
-
-  # When the input is a file, transparently convert legacy formats (e.g. binary
-  # Word `.doc`) to a pandoc-readable form via LibreOffice before parsing.
-  defp ingest_opts(pandoc_opts, canonical_opts) do
-    case Keyword.get(pandoc_opts, :input) do
-      path when is_binary(path) ->
-        case Convert.to_pandoc_readable(path) do
-          {:ok, ^path} ->
-            finish(Panpipe.ast(pandoc_opts), canonical_opts)
-
-          {:ok, converted} ->
-            try do
-              finish(Panpipe.ast(Keyword.put(pandoc_opts, :input, converted)), canonical_opts)
-            after
-              Convert.cleanup(converted)
-            end
-
-          {:error, _} = error ->
-            error
-        end
-
-      _ ->
-        finish(Panpipe.ast(pandoc_opts), canonical_opts)
-    end
-  end
-
-  defp finish({:ok, %Panpipe.Document{} = doc}, canonical_opts),
-    do: from_panpipe(doc, canonical_opts)
-
-  defp finish({:error, _} = error, _canonical_opts), do: error
 
   @doc "Convert an already-parsed Panpipe.Document into a canonical doc."
   def from_panpipe(%Panpipe.Document{children: blocks}, opts \\ []) do
