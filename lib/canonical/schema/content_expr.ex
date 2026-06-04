@@ -92,4 +92,54 @@ defmodule Canonical.Schema.ContentExpr do
     [:rparen | rest3] = rest2
     {inner, rest3}
   end
+
+  # --- Matching ------------------------------------------------------------
+
+  alias Canonical.Schema
+
+  @doc "Does `types` (a list of child node-type strings) satisfy the expression?"
+  def matches?(nil, types, _schema), do: types == []
+
+  def matches?(expr, types, schema) do
+    expr |> consume(types, schema) |> Enum.any?(&(&1 == []))
+  end
+
+  # consume/3 returns the list of possible remaining-type-lists after matching.
+  defp consume({:name, name}, [type | rest], schema) do
+    if name_matches?(name, type, schema), do: [rest], else: []
+  end
+
+  defp consume({:name, _}, [], _schema), do: []
+
+  defp consume({:seq, []}, types, _schema), do: [types]
+
+  defp consume({:seq, [e | es]}, types, schema) do
+    e |> consume(types, schema) |> Enum.flat_map(&consume({:seq, es}, &1, schema))
+  end
+
+  defp consume({:or, alts}, types, schema) do
+    Enum.flat_map(alts, &consume(&1, types, schema))
+  end
+
+  defp consume({:opt, e}, types, schema) do
+    [types | consume(e, types, schema)]
+  end
+
+  defp consume({:star, e}, types, schema) do
+    progressed =
+      e
+      |> consume(types, schema)
+      |> Enum.reject(&(&1 == types))
+      |> Enum.flat_map(&consume({:star, e}, &1, schema))
+
+    Enum.uniq([types | progressed])
+  end
+
+  defp consume({:plus, e}, types, schema) do
+    consume({:seq, [e, {:star, e}]}, types, schema)
+  end
+
+  defp name_matches?(name, type, schema) do
+    name == type or name in Schema.groups(schema, type)
+  end
 end
