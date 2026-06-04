@@ -36,6 +36,10 @@ defmodule Canonical.Text do
       u16
       |> binary_part(byte_from, len)
       |> :unicode.characters_to_binary({:utf16, :little}, :utf8)
+      |> case do
+        bin when is_binary(bin) -> bin
+        _ -> ""
+      end
     end
   end
 end

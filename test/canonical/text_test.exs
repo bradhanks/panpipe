@@ -2,7 +2,7 @@ defmodule Canonical.TextTest do
   use ExUnit.Case, async: true
   alias Canonical.Text
 
-  @doc_map %{
+  @doc_node %{
     "type" => "doc",
     "content" => [
       %{
@@ -17,7 +17,7 @@ defmodule Canonical.TextTest do
   }
 
   test "flatten_text/1 concatenates descendant text from a node map" do
-    assert Text.flatten_text(@doc_map) == "Hi world"
+    assert Text.flatten_text(@doc_node) == "Hi world"
   end
 
   test "utf16_length/1 counts UTF-16 code units (surrogate pairs = 2)" do
@@ -34,5 +34,10 @@ defmodule Canonical.TextTest do
     # clamps past the end; empty when from==to
     assert Text.utf16_slice("hi", 1, 99) == "i"
     assert Text.utf16_slice("hi", 1, 1) == ""
+  end
+
+  test "utf16_slice/3 returns \"\" when a slice splits a surrogate pair" do
+    # offsets 2..3 land between the two UTF-16 code units of 😂 → invalid UTF-16
+    assert Text.utf16_slice("a😂b", 2, 3) == ""
   end
 end
