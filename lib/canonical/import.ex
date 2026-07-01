@@ -65,7 +65,7 @@ defmodule Canonical.Import do
     node
     |> collect()
     |> Enum.filter(&(&1.type in @escape_types))
-    |> Enum.map(&{:escaped, &1.type})
+    |> Enum.map(&{:escaped, &1.type, &1.attrs["text"]})
   end
 
   defp collect(%Node{content: content} = node), do: [node | Enum.flat_map(content, &collect/1)]

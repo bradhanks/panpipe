@@ -38,6 +38,29 @@ defmodule Canonical.ImportTest do
     assert "div" in types or "raw_block" in types or "unsupported_block" in types
     # Pandoc may model this as a div; either way nothing crashes and ids are minted.
     assert is_list(warnings)
+
+    # All escaped warnings carry the 3-element shape {:escaped, type, text}.
+    # text is nil for unsupported_* nodes (no raw text available) and a binary
+    # for raw_block/raw_inline nodes.
+    for w <- warnings, match?({:escaped, _, _}, w) do
+      {:escaped, type, text} = w
+      assert is_binary(type) or is_atom(type)
+      assert is_nil(text) or is_binary(text)
+    end
+  end
+
+  test "escaped warnings carry {type, text} for raw_block nodes" do
+    # A LaTeX raw block produces a raw_block node with known text.
+    latex = "```{=latex}\n\\maketitle\n```"
+
+    {:ok, _doc, warnings} =
+      Canonical.ingest(latex, id_generator: counter_gen())
+
+    escaped = Enum.filter(warnings, &match?({:escaped, _, _}, &1))
+
+    assert Enum.any?(escaped, fn {:escaped, type, text} ->
+             type == "raw_block" and is_binary(text) and String.contains?(text, "maketitle")
+           end)
   end
 
   defp collect_types(%Node{type: t, content: content}),
